@@ -4,7 +4,7 @@
 
 **Status:** specified, not built yet. The [spec](./docs/spec.md) is the source of truth; a playable prototype of the star garden is in [`game/`](./game/).
 
-![Star garden prototype](./game/screenshot.png)
+![Star garden prototype with the feeding log](./game/screenshot.png)
 
 ## Problem
 
