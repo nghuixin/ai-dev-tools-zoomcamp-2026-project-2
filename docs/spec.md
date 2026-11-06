@@ -40,7 +40,7 @@ A small, optional **star garden** makes everyday logging enjoyable: each success
 | | Clinical record (the app) | Star garden (the fun corner) |
 |---|---|---|
 | Purpose | Accurate, structured records a vet can read in two minutes | Make daily logging something people want to do |
-| Look | White / very light grey background, one muted accent, system font, tables, explicit dates and units, print-friendly | Original 90s-arcade pixel art (prototype: [`game/index.html`](../game/index.html)) |
+| Look | White / very light grey background, one muted accent, system font, tables, explicit dates and units, print-friendly | Original 90s-arcade pixel art (`frontend/src/garden/`) |
 | Placement | Every page | One collapsible strip at the top of Today only |
 | Print and vet report | Included | **Never** shown |
 | Data | All records | Logs **medicine and supplement doses only**, as ordinary dose-log records (the same rows the Medicines page creates). Only the star counters are its own |
@@ -59,7 +59,7 @@ Each feature below becomes one GitHub issue with this checklist. Acceptance crit
 ### 5.2 Today
 
 - [ ] Shows the star garden strip (collapsible; collapsed state remembered in the browser).
-- [ ] Quick-log buttons: **Gave medicine**, **Ate**, **Toileted**, **Note**. Each creates a dated record of the matching kind.
+- [ ] Quick-log buttons: **Ate**, **Toileted**, **Note**. Each creates a dated observation of the matching kind. Doses are logged in the star garden's feeding log (or on the Medicines page), so Today has one place to log a dose.
 - [ ] Lists medicines that run out within 7 days, soonest first.
 - [ ] Lists the 5 most recent observations.
 
@@ -78,7 +78,7 @@ Each feature below becomes one GitHub issue with this checklist. Acceptance crit
 - [ ] Rows within 7 days of running out are highlighted.
 - [ ] **Refill** resets quantity and `refilled_on`.
 - [ ] **Stop** requires a reason; stopped medicines move to a "Past" section.
-- [ ] **Dose log:** "Gave medicine" records a dose for a chosen medicine at a time. The vet report uses it for adherence.
+- [ ] **Dose log:** "Gave medicine" on the Medicines page records a dose for a chosen medicine at a time. The vet report uses it for adherence.
 
 ### 5.5 Measures
 

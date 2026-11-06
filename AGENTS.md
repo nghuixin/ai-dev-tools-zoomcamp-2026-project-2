@@ -25,7 +25,6 @@ ops/gcp/               Cloud Monitoring alert setup
 scripts/               poll_alerts.py (on-call), traffic.py, healthcheck.sh, create_issues.py
 .github/workflows/     ci-cd.yml (tests, dev deploy, approved prod deploy), rollback.yml
 .agents/               role instructions (agents/*.md) and the on-call agent's tool permissions
-game/                  the original single-file star garden prototype
 ```
 
 ## Commands

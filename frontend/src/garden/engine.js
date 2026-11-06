@@ -1,7 +1,6 @@
-// The star garden engine, ported from the prototype in game/index.html.
+// The star garden engine (originally a single-file prototype, since retired).
 // It draws and animates the scene only. It owns no records: the React component tells it
 // when a save succeeded (dropStar) and hears back when a star reaches the jar (onCatch).
-/* eslint-disable */
 
 const PREFS_KEY = "atlas-garden-prefs";
 export function loadPrefs() {
@@ -10,8 +9,6 @@ export function loadPrefs() {
   return p;
 }
 export function savePrefs(p) { try { localStorage.setItem(PREFS_KEY, JSON.stringify(p)); } catch (e) {} }
-
-export const BRIDGE_DOG_NAMES = ["Kuro", "Attila", "Gladys", "Lucky"];
 
 /**
  * @param {HTMLCanvasElement} cv
@@ -332,9 +329,12 @@ export function createGarden(cv, opts) {
       else rect(ctx, x + 2, y, 2, 2, "#ff8fbf");
     }
   }
-  for (let i = 0; i < opts.waiting; i++) {
-    stars.push({ x: 150 + Math.random() * 150, y: STAR_REST, vy: 0, state: "rest", t: Math.random() * 6 });
-  }
+  // At most a dozen stars wait on the grass; the rest stay in reserve and appear one by one
+  // as stars are caught, so a long gap between visits never buries the scene.
+  const MAX_RESTING = 12;
+  let reserve = Math.max(0, opts.waiting - MAX_RESTING);
+  const restStar = () => stars.push({ x: 150 + Math.random() * 150, y: STAR_REST, vy: 0, state: "rest", t: Math.random() * 6 });
+  for (let i = 0; i < Math.min(opts.waiting, MAX_RESTING); i++) restStar();
 
   // ================= Sound (chiptune) =================
   let actx = null;
@@ -440,6 +440,7 @@ export function createGarden(cv, opts) {
           stars.splice(i, 1);
           state.caught += 1;
           opts.onCatch();
+          if (reserve > 0) { reserve -= 1; restStar(); }
           for (let k = 0; k < 6; k++) sparkles.push({ x: tx + (Math.random() - .5) * 16, y: ty + (Math.random() - .5) * 12, life: 0.6 });
         }
       }
@@ -461,7 +462,7 @@ export function createGarden(cv, opts) {
   function drawUi(t) {
     miniStar(7, 8);
     drawText(String(state.caught).padStart(3, "0"), 12, 6, "#ffe14d");
-    const waiting = stars.filter(s => s.state !== "fly").length;
+    const waiting = stars.filter(s => s.state !== "fly").length + reserve;
     if (waiting) drawText(`${waiting} WAITING`, 5, 15, "#ffffff");
     if (toast && (toast.t > 0.6 || Math.floor(toast.t * 8) % 2 === 0)) {
       const s = toast.text, w = textWidth(s.toUpperCase()) + 10, x = Math.round(W / 2 - w / 2), y = 100;

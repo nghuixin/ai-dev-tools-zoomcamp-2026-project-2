@@ -4,7 +4,7 @@
 
 **Status:** built and tested locally. Cloud deployment (Google Cloud Run + Neon) is ready to switch on after the one-time setup in [docs/deployment.md](./docs/deployment.md).
 
-![Star garden prototype with the feeding log](./game/screenshot.png)
+![The Today page: the star garden and its feeding log](./docs/images/star-garden.png)
 
 ## Problem
 
@@ -47,4 +47,3 @@ The public deployment holds demo data only: there is no login in this MVP.
 | [Process](./docs/process.md) · [Permissions](./docs/permissions.md) | Agent team loop and what each agent may touch |
 | [Decision log](./docs/tasks.md) · [Criteria log](./docs/criteria-log.md) | Choices made, and evidence for each course criterion |
 | [MVP plan](./docs/atlas/mvp-plan.md) | How the idea was narrowed down from the full Atlas |
-| [`game/`](./game/) | The original single-file star garden prototype |

@@ -48,7 +48,6 @@ export function StarGarden({ dog, meds }: { dog: Dog; meds: Medication[] }) {
       garden.current = null;
     };
     // The coat is applied live below; rebuilding the scene is only needed when it is opened.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [collapsed, api]);
 
   useEffect(() => garden.current?.setCoat(dog.coat), [dog.coat]);

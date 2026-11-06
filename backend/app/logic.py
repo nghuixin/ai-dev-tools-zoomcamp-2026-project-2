@@ -7,7 +7,6 @@ from datetime import date, timedelta
 from .config import Settings
 
 CATEGORIES = ("MOBILITY", "APPETITE", "TOILETING", "SKIN_COAT", "BREATHING", "BEHAVIOUR", "OTHER")
-KINDS = ("DRUG", "SUPPLEMENT", "HERBAL", "OTHER")
 CHECKIN_ITEMS = ("hurt", "hunger", "hydration", "hygiene", "happiness", "mobility", "more_good_days")
 SOON_DAYS = 7
 

@@ -4,6 +4,8 @@ What was chosen, what was deferred, and why. Newest first. The PM agent adds to 
 
 | Date | Decision | Why | Deferred / rejected |
 |---|---|---|---|
+| 2026-11-05 | Today has **one** way to log a dose (the garden's feeding log); the "Gave medicine" quick button moved off Today, and its form stays on Medicines | Two dose forms side by side on Today were redundant and invited double entries | — |
+| 2026-11-05 | Removed the single-file prototype (`game/`) and the unused ESLint setup | The prototype lives on as `frontend/src/garden/`; ESLint was template boilerplate nobody ran (type checking and tests run in CI) | Adding a linter to CI later |
 | 2026-11-05 | Production metrics come from a **log-based metric** on the JSON request logs, not an OpenTelemetry metrics exporter | Cloud Run can't be scraped by Prometheus without a sidecar; the request log already carries `record_type` and `outcome`, so one source feeds both the alert and the dashboard, and it is content-free by construction | OTel metrics exporter to Cloud Monitoring |
 | 2026-11-05 | The API contract is **generated from the backend** (`make openapi`) and a test fails when `openapi.yaml` is stale; the UI was built first against `services/api.ts`, and tests use a scripted fetch rather than a full mock backend | One source of truth that can't drift; a mock backend would duplicate the report logic | Hand-written OpenAPI; an in-browser mock service |
 | 2026-11-05 | Added `POST /api/stars/visit` (daily visit star) and `GET /api/doses` (garden's recent doses) | A GET with side effects would be wrong for the visit star; the garden must show recent doses so double doses are visible | — |

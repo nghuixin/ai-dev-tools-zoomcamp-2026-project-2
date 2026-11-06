@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { DoseForm } from "../components/DoseForm";
 import { ObservationForm } from "../components/ObservationForm";
 import { Empty, ErrorNote, Saved, errorText, useLoad } from "../components/ui";
 import { StarGarden } from "../garden/StarGarden";
@@ -8,13 +7,11 @@ import { useApi } from "../services/api";
 import { CATEGORY_LABEL, type Dog } from "../services/types";
 import { fmtDate, fmtDateTime } from "../utils/dates";
 
-type Panel = "dose" | "note" | null;
-
 export function Today({ dog }: { dog: Dog }) {
   const api = useApi();
   const meds = useLoad(() => api.listMedications());
   const recent = useLoad(() => api.listObservations({ limit: 5 }));
-  const [panel, setPanel] = useState<Panel>(null);
+  const [noteOpen, setNoteOpen] = useState(false);
   const [quick, setQuick] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,19 +34,16 @@ export function Today({ dog }: { dog: Dog }) {
 
       <h1>Today</h1>
       <div className="quick" role="group" aria-label="Quick log">
-        <button type="button" onClick={() => setPanel(panel === "dose" ? null : "dose")} aria-pressed={panel === "dose"}>
-          Gave medicine
-        </button>
         <button type="button" onClick={() => quickLog("APPETITE", "Ate")}>Ate</button>
         <button type="button" onClick={() => quickLog("TOILETING", "Toileted")}>Toileted</button>
-        <button type="button" onClick={() => setPanel(panel === "note" ? null : "note")} aria-pressed={panel === "note"}>
+        <button type="button" onClick={() => setNoteOpen(!noteOpen)} aria-pressed={noteOpen}>
           Note
         </button>
       </div>
       <Saved text={quick} />
       <ErrorNote error={error} />
-      {panel === "dose" && meds.data && <DoseForm meds={meds.data} />}
-      {panel === "note" && <ObservationForm onSaved={() => recent.reload()} />}
+      {noteOpen && <ObservationForm onSaved={() => recent.reload()} />}
+      <p className="muted">Medicines and supplements given are logged in the star garden above, or on the <Link to="/medicines">Medicines</Link> page.</p>
 
       <section>
         <h2>Running out within 7 days</h2>

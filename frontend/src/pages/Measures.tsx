@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Empty, ErrorNote, Field, Saved, errorText, useLoad } from "../components/ui";
-import { ApiError, useApi } from "../services/api";
+import { useApi } from "../services/api";
 import { CHECKIN_ITEMS, type CheckinScores } from "../services/types";
 import { fmtDate, fmtWeek, isoWeek, todayISO } from "../utils/dates";
 
@@ -84,7 +84,7 @@ function Checkin() {
       setSaved(`Check-in for ${c.iso_week} saved: ${c.total} / 70.`);
       setNote(""); list.reload();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : errorText(err));
+      setError(errorText(err));
     }
   }
 

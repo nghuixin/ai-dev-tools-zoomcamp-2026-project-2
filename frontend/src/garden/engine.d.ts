@@ -22,4 +22,3 @@ export function createGarden(
 ): Garden;
 export function loadPrefs(): GardenPrefs;
 export function savePrefs(p: GardenPrefs): void;
-export const BRIDGE_DOG_NAMES: string[];

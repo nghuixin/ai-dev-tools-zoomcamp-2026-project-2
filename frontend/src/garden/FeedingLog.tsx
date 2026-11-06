@@ -27,7 +27,6 @@ export function FeedingLog({ dogName, meds, onLogged }: { dogName: string; meds:
   const chosen = options.find((m) => m.id === medId) ?? options[0];
 
   const loadRecent = () => api.recentDoses(5).then(setRecent, () => {});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => void loadRecent(), []);
 
   async function submit(e: FormEvent) {

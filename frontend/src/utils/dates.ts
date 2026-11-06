@@ -18,11 +18,6 @@ export function localInputToISO(v: string): string {
   return new Date(v).toISOString();
 }
 
-export function addDays(iso: string, days: number): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  return todayISO(new Date(y, m - 1, d + days));
-}
-
 /** ISO week like 2026-W45 for a local date. */
 export function isoWeek(d = new Date()): string {
   const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
@@ -59,9 +54,4 @@ export function fmtDateTime(iso: string): string {
 export function fmtWeek(week: string): string {
   const mon = isoWeekMonday(week);
   return `${week} (w/c ${DATE_FMT.format(mon)})`;
-}
-
-export function daysUntil(iso: string, from = todayISO()): number {
-  const a = new Date(from + "T00:00:00"), b = new Date(iso + "T00:00:00");
-  return Math.round((b.getTime() - a.getTime()) / 86400000);
 }

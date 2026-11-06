@@ -20,7 +20,7 @@ The MVP keeps the three gaps from Kuro's care that someone with a dog **today** 
 
 ## The star garden
 
-The top of the Today screen is a small cozy scene, not a separate game: one screen, one player, no levels, no way to fail. A working prototype is in [`game/index.html`](../../game/index.html).
+The top of the Today screen is a small cozy scene, not a separate game: one screen, one player, no levels, no way to fail. A single-file prototype was built first; it has since been retired in favour of `frontend/src/garden/`.
 
 **Look:** an original 90s-arcade pixel style. The scene is drawn at 320×180 and scaled up with crisp pixels: outlined pixel sprites, a bright saturated palette, a 3×5 bitmap font, chiptune sounds and faint CRT scanlines. The rest of the app's pages use the same chunky arcade panels and buttons, with a pixel display font for headings and a readable terminal font for text.
 
@@ -89,7 +89,7 @@ Saving on the Medicines and Check-in screens shows the star drop as a small over
 ## Build order, following Project 1's frontend-first process
 
 1. **Spec:** `docs/spec.md` and `docs/tasks.md`, plus GitHub issues with acceptance criteria, one per screen and one for the star garden.
-2. **Frontend with a mock service:** the four screens, with data stored in the browser. Port the star garden from `game/index.html` into a React component on Today.
+2. **Frontend with a mock service:** the four screens, with data stored in the browser. Port the star garden prototype into a React component on Today.
 3. **Contract:** extract `openapi.yaml` from the HTTP client.
 4. **Backend and tests:**
    - endpoint CRUD

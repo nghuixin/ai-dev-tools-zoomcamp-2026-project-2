@@ -9,3 +9,5 @@ __pycache__/
 .oncall/
 *.log
 .DS_Store
+.vscode/
+.idea/
