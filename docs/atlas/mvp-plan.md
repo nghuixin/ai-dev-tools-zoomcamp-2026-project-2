@@ -1,5 +1,7 @@
 # Canine Health Atlas: an MVP plan
 
+> **Superseded by the [spec](../spec.md)**, which makes the app clinical (with a printable vet report), keeps the star garden as an optional corner, and adds deployment on Google Cloud Run + Neon. This plan is kept as the record of how the idea was narrowed down.
+
 A much simpler first version of the full [Canine Health Atlas spec](https://github.com/nghuixin/os-kuro-archives), for someone who already has a dog. It's built on the same shape as [Project 1](https://github.com/nghuixin/ai-dev-tools-zoomcamp-2026-project-1) (site issue triage).
 
 ## The idea
