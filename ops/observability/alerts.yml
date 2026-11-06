@@ -1,0 +1,20 @@
+# Spec §16: one alert, on user impact. No CPU or memory alerts: they don't describe what the owner sees.
+groups:
+  - name: atlas-user-impact
+    rules:
+      - alert: RecordSaveFailing
+        # Share of record saves (observation, dose, weight, check-in) answered with a 5xx.
+        expr: |
+          sum(rate(atlas_record_saves_total{outcome="server_error"}[2m]))
+            / clamp_min(sum(rate(atlas_record_saves_total[2m])), 1e-9)
+          > 0.05
+        for: 1m
+        labels:
+          severity: page
+        annotations:
+          summary: "More than 5% of record saves are failing"
+          description: >-
+            {{ $value | humanizePercentage }} of saves returned 5xx over the last 2 minutes. The owner's
+            care is not being recorded. Mitigate first with the rollback workflow if a deploy caused it.
+          dashboard: http://localhost:3000/d/atlas-saves
+          runbook: docs/observability.md#recordsavefailing-runbook
