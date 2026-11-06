@@ -1,0 +1,1564 @@
+openapi: 3.1.0
+info:
+  title: Canine Health Atlas API
+  version: 0.1.0
+paths:
+  /api/dog:
+    get:
+      tags:
+      - dog
+      summary: Get Dog
+      operationId: get_dog_api_dog_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DogOut'
+    put:
+      tags:
+      - dog
+      summary: Put Dog
+      description: Creates the one dog on first run, updates it after that.
+      operationId: put_dog_api_dog_put
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DogIn'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DogOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/stars:
+    get:
+      tags:
+      - dog
+      summary: Get Stars
+      operationId: get_stars_api_stars_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StarsOut'
+  /api/stars/visit:
+    post:
+      tags:
+      - dog
+      summary: Visit Star
+      description: The first visit each day adds one star. Calling it again the same
+        day adds nothing.
+      operationId: visit_star_api_stars_visit_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StarsOut'
+  /api/stars/catch:
+    post:
+      tags:
+      - dog
+      summary: Catch Star
+      operationId: catch_star_api_stars_catch_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StarsOut'
+  /api/observations:
+    get:
+      tags:
+      - observations
+      summary: List Observations
+      operationId: list_observations_api_observations_get
+      parameters:
+      - name: category
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - enum:
+            - MOBILITY
+            - APPETITE
+            - TOILETING
+            - SKIN_COAT
+            - BREATHING
+            - BEHAVIOUR
+            - OTHER
+            type: string
+          - type: 'null'
+          title: Category
+      - name: from
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: From
+      - name: to
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: To
+      - name: tz_offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 900
+          minimum: -900
+          default: 0
+          title: Tz Offset
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 1000
+          minimum: 1
+          default: 200
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ObservationOut'
+                title: Response List Observations Api Observations Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - observations
+      summary: Create Observation
+      operationId: create_observation_api_observations_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ObservationIn'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ObservationOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/observations/{obs_id}:
+    patch:
+      tags:
+      - observations
+      summary: Patch Observation
+      operationId: patch_observation_api_observations__obs_id__patch
+      parameters:
+      - name: obs_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Obs Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ObservationPatch'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ObservationOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/observations/analyze:
+    post:
+      tags:
+      - observations
+      summary: Analyze
+      description: 'Keyword rules (spec §8). Anything that fails validation is reported
+        as unavailable,
+
+        and the client still lets the owner save.'
+      operationId: analyze_api_observations_analyze_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnalyzeIn'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AISuggestion'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/medications:
+    get:
+      tags:
+      - medications
+      summary: List Medications
+      operationId: list_medications_api_medications_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/MedicationOut'
+                type: array
+                title: Response List Medications Api Medications Get
+    post:
+      tags:
+      - medications
+      summary: Create Medication
+      operationId: create_medication_api_medications_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MedicationIn'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MedicationOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/medications/{med_id}/refill:
+    post:
+      tags:
+      - medications
+      summary: Refill
+      operationId: refill_api_medications__med_id__refill_post
+      parameters:
+      - name: med_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Med Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefillIn'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MedicationOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/medications/{med_id}/stop:
+    post:
+      tags:
+      - medications
+      summary: Stop
+      operationId: stop_api_medications__med_id__stop_post
+      parameters:
+      - name: med_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Med Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StopIn'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MedicationOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/medications/{med_id}/doses:
+    post:
+      tags:
+      - medications
+      summary: Log Dose
+      operationId: log_dose_api_medications__med_id__doses_post
+      parameters:
+      - name: med_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Med Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DoseIn'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DoseOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/doses:
+    get:
+      tags:
+      - medications
+      summary: Recent Doses
+      operationId: recent_doses_api_doses_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          default: 5
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DoseOut'
+                title: Response Recent Doses Api Doses Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/weights:
+    get:
+      tags:
+      - measures
+      summary: List Weights
+      operationId: list_weights_api_weights_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/WeightOut'
+                type: array
+                title: Response List Weights Api Weights Get
+    post:
+      tags:
+      - measures
+      summary: Add Weight
+      operationId: add_weight_api_weights_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WeightIn'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeightOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/checkins:
+    get:
+      tags:
+      - measures
+      summary: List Checkins
+      operationId: list_checkins_api_checkins_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/CheckinOut'
+                type: array
+                title: Response List Checkins Api Checkins Get
+  /api/checkins/{iso_week}:
+    get:
+      tags:
+      - measures
+      summary: Get Checkin
+      operationId: get_checkin_api_checkins__iso_week__get
+      parameters:
+      - name: iso_week
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Iso Week
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckinOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    put:
+      tags:
+      - measures
+      summary: Put Checkin
+      description: One check-in per ISO week. A second PUT replaces the first (the
+        UI confirms before sending).
+      operationId: put_checkin_api_checkins__iso_week__put
+      parameters:
+      - name: iso_week
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Iso Week
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckinIn'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckinOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/vet-visits:
+    get:
+      tags:
+      - measures
+      summary: List Visits
+      operationId: list_visits_api_vet_visits_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/VetVisitOut'
+                type: array
+                title: Response List Visits Api Vet Visits Get
+    post:
+      tags:
+      - measures
+      summary: Add Visit
+      operationId: add_visit_api_vet_visits_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VetVisitIn'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VetVisitOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/report:
+    get:
+      tags:
+      - report
+      summary: Report
+      operationId: report_api_report_get
+      parameters:
+      - name: basis
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - enum:
+            - since_last_visit
+            - last_30_days
+            - custom
+            type: string
+          - type: 'null'
+          title: Basis
+      - name: from
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: From
+      - name: to
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: To
+      - name: tz_offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 900
+          minimum: -900
+          default: 0
+          title: Tz Offset
+      - name: today
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Today
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Report'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+components:
+  schemas:
+    AISuggestion:
+      properties:
+        category:
+          type: string
+          enum:
+          - MOBILITY
+          - APPETITE
+          - TOILETING
+          - SKIN_COAT
+          - BREATHING
+          - BEHAVIOUR
+          - OTHER
+          title: Category
+        summary:
+          type: string
+          maxLength: 200
+          title: Summary
+      type: object
+      required:
+      - category
+      - summary
+      title: AISuggestion
+    AnalyzeIn:
+      properties:
+        text:
+          type: string
+          maxLength: 2000
+          minLength: 1
+          title: Text
+      type: object
+      required:
+      - text
+      title: AnalyzeIn
+    CheckinIn:
+      properties:
+        hurt:
+          type: integer
+          maximum: 10.0
+          minimum: 0.0
+          title: Hurt
+        hunger:
+          type: integer
+          maximum: 10.0
+          minimum: 0.0
+          title: Hunger
+        hydration:
+          type: integer
+          maximum: 10.0
+          minimum: 0.0
+          title: Hydration
+        hygiene:
+          type: integer
+          maximum: 10.0
+          minimum: 0.0
+          title: Hygiene
+        happiness:
+          type: integer
+          maximum: 10.0
+          minimum: 0.0
+          title: Happiness
+        mobility:
+          type: integer
+          maximum: 10.0
+          minimum: 0.0
+          title: Mobility
+        more_good_days:
+          type: integer
+          maximum: 10.0
+          minimum: 0.0
+          title: More Good Days
+        note:
+          anyOf:
+          - type: string
+            maxLength: 1000
+          - type: 'null'
+          title: Note
+      type: object
+      required:
+      - hurt
+      - hunger
+      - hydration
+      - hygiene
+      - happiness
+      - mobility
+      - more_good_days
+      title: CheckinIn
+    CheckinOut:
+      properties:
+        iso_week:
+          type: string
+          title: Iso Week
+        hurt:
+          type: integer
+          title: Hurt
+        hunger:
+          type: integer
+          title: Hunger
+        hydration:
+          type: integer
+          title: Hydration
+        hygiene:
+          type: integer
+          title: Hygiene
+        happiness:
+          type: integer
+          title: Happiness
+        mobility:
+          type: integer
+          title: Mobility
+        more_good_days:
+          type: integer
+          title: More Good Days
+        total:
+          type: integer
+          title: Total
+        note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Note
+      type: object
+      required:
+      - iso_week
+      - hurt
+      - hunger
+      - hydration
+      - hygiene
+      - happiness
+      - mobility
+      - more_good_days
+      - total
+      - note
+      title: CheckinOut
+    DogIn:
+      properties:
+        name:
+          type: string
+          maxLength: 80
+          minLength: 1
+          title: Name
+        birth_date:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Birth Date
+        sex:
+          type: string
+          enum:
+          - FEMALE
+          - MALE
+          - UNKNOWN
+          title: Sex
+          default: UNKNOWN
+        breed:
+          type: string
+          maxLength: 80
+          title: Breed
+          default: ''
+        coat:
+          type: string
+          enum:
+          - blue
+          - red
+          - tri
+          - saddle
+          - golden
+          - black
+          - brown
+          - cream
+          - grey
+          title: Coat
+          default: blue
+      type: object
+      required:
+      - name
+      title: DogIn
+    DogOut:
+      properties:
+        name:
+          type: string
+          title: Name
+        birth_date:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Birth Date
+        sex:
+          type: string
+          enum:
+          - FEMALE
+          - MALE
+          - UNKNOWN
+          title: Sex
+        breed:
+          type: string
+          title: Breed
+        coat:
+          type: string
+          enum:
+          - blue
+          - red
+          - tri
+          - saddle
+          - golden
+          - black
+          - brown
+          - cream
+          - grey
+          title: Coat
+      type: object
+      required:
+      - name
+      - birth_date
+      - sex
+      - breed
+      - coat
+      title: DogOut
+    DoseIn:
+      properties:
+        given_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Given At
+      type: object
+      title: DoseIn
+    DoseOut:
+      properties:
+        id:
+          type: integer
+          title: Id
+        medication_id:
+          type: integer
+          title: Medication Id
+        name:
+          type: string
+          title: Name
+        kind:
+          type: string
+          enum:
+          - DRUG
+          - SUPPLEMENT
+          - HERBAL
+          - OTHER
+          title: Kind
+        dose:
+          type: string
+          title: Dose
+        given_at:
+          type: string
+          format: date-time
+          title: Given At
+      type: object
+      required:
+      - id
+      - medication_id
+      - name
+      - kind
+      - dose
+      - given_at
+      title: DoseOut
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    MedicationIn:
+      properties:
+        name:
+          type: string
+          maxLength: 80
+          minLength: 1
+          title: Name
+        kind:
+          type: string
+          enum:
+          - DRUG
+          - SUPPLEMENT
+          - HERBAL
+          - OTHER
+          title: Kind
+        dose:
+          type: string
+          maxLength: 40
+          minLength: 1
+          title: Dose
+        per_day:
+          type: number
+          maximum: 24.0
+          exclusiveMinimum: 0.0
+          title: Per Day
+        quantity:
+          type: number
+          maximum: 10000.0
+          minimum: 0.0
+          title: Quantity
+        started_on:
+          type: string
+          format: date
+          title: Started On
+        prescriber:
+          anyOf:
+          - type: string
+            maxLength: 80
+          - type: 'null'
+          title: Prescriber
+      type: object
+      required:
+      - name
+      - kind
+      - dose
+      - per_day
+      - quantity
+      - started_on
+      title: MedicationIn
+    MedicationOut:
+      properties:
+        id:
+          type: integer
+          title: Id
+        name:
+          type: string
+          title: Name
+        kind:
+          type: string
+          enum:
+          - DRUG
+          - SUPPLEMENT
+          - HERBAL
+          - OTHER
+          title: Kind
+        dose:
+          type: string
+          title: Dose
+        per_day:
+          type: number
+          title: Per Day
+        quantity:
+          type: number
+          title: Quantity
+        started_on:
+          type: string
+          format: date
+          title: Started On
+        refilled_on:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Refilled On
+        prescriber:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Prescriber
+        stopped_on:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Stopped On
+        stop_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Stop Reason
+        active:
+          type: boolean
+          title: Active
+        runs_out_on:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Runs Out On
+        runs_out_soon:
+          type: boolean
+          title: Runs Out Soon
+      type: object
+      required:
+      - id
+      - name
+      - kind
+      - dose
+      - per_day
+      - quantity
+      - started_on
+      - refilled_on
+      - prescriber
+      - stopped_on
+      - stop_reason
+      - active
+      - runs_out_on
+      - runs_out_soon
+      title: MedicationOut
+    ObservationIn:
+      properties:
+        observed_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Observed At
+        category:
+          type: string
+          enum:
+          - MOBILITY
+          - APPETITE
+          - TOILETING
+          - SKIN_COAT
+          - BREATHING
+          - BEHAVIOUR
+          - OTHER
+          title: Category
+          default: OTHER
+        text:
+          type: string
+          maxLength: 2000
+          minLength: 1
+          title: Text
+        summary:
+          anyOf:
+          - type: string
+            maxLength: 200
+          - type: 'null'
+          title: Summary
+        for_vet:
+          type: boolean
+          title: For Vet
+          default: false
+        ai_suggestion:
+          anyOf:
+          - $ref: '#/components/schemas/AISuggestion'
+          - type: 'null'
+        edited_fields:
+          items:
+            type: string
+            enum:
+            - category
+            - summary
+          type: array
+          title: Edited Fields
+          default: []
+      type: object
+      required:
+      - text
+      title: ObservationIn
+    ObservationOut:
+      properties:
+        id:
+          type: integer
+          title: Id
+        observed_at:
+          type: string
+          format: date-time
+          title: Observed At
+        category:
+          type: string
+          enum:
+          - MOBILITY
+          - APPETITE
+          - TOILETING
+          - SKIN_COAT
+          - BREATHING
+          - BEHAVIOUR
+          - OTHER
+          title: Category
+        text:
+          type: string
+          title: Text
+        summary:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Summary
+        for_vet:
+          type: boolean
+          title: For Vet
+        ai_suggestion:
+          anyOf:
+          - $ref: '#/components/schemas/AISuggestion'
+          - type: 'null'
+        edited_fields:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Edited Fields
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - observed_at
+      - category
+      - text
+      - summary
+      - for_vet
+      - ai_suggestion
+      - edited_fields
+      - created_at
+      title: ObservationOut
+    ObservationPatch:
+      properties:
+        observed_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Observed At
+        category:
+          anyOf:
+          - type: string
+            enum:
+            - MOBILITY
+            - APPETITE
+            - TOILETING
+            - SKIN_COAT
+            - BREATHING
+            - BEHAVIOUR
+            - OTHER
+          - type: 'null'
+          title: Category
+        text:
+          anyOf:
+          - type: string
+            maxLength: 2000
+            minLength: 1
+          - type: 'null'
+          title: Text
+        summary:
+          anyOf:
+          - type: string
+            maxLength: 200
+          - type: 'null'
+          title: Summary
+        for_vet:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: For Vet
+      type: object
+      title: ObservationPatch
+    RefillIn:
+      properties:
+        quantity:
+          type: number
+          maximum: 10000.0
+          minimum: 0.0
+          title: Quantity
+        refilled_on:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Refilled On
+      type: object
+      required:
+      - quantity
+      title: RefillIn
+    Report:
+      properties:
+        dog:
+          $ref: '#/components/schemas/DogOut'
+        period:
+          $ref: '#/components/schemas/ReportPeriod'
+        generated_at:
+          type: string
+          format: date-time
+          title: Generated At
+        current_medications:
+          items:
+            $ref: '#/components/schemas/ReportMedication'
+          type: array
+          title: Current Medications
+        medication_changes:
+          items:
+            $ref: '#/components/schemas/ReportMedChange'
+          type: array
+          title: Medication Changes
+        weight:
+          anyOf:
+          - $ref: '#/components/schemas/ReportWeight'
+          - type: 'null'
+        quality_of_life:
+          anyOf:
+          - $ref: '#/components/schemas/ReportQoL'
+          - type: 'null'
+        observations:
+          items:
+            $ref: '#/components/schemas/ReportObsGroup'
+          type: array
+          title: Observations
+        questions:
+          items:
+            $ref: '#/components/schemas/ObservationOut'
+          type: array
+          title: Questions
+        footer:
+          type: string
+          title: Footer
+      type: object
+      required:
+      - dog
+      - period
+      - generated_at
+      - current_medications
+      - medication_changes
+      - weight
+      - quality_of_life
+      - observations
+      - questions
+      - footer
+      title: Report
+    ReportMedChange:
+      properties:
+        name:
+          type: string
+          title: Name
+        kind:
+          type: string
+          enum:
+          - DRUG
+          - SUPPLEMENT
+          - HERBAL
+          - OTHER
+          title: Kind
+        change:
+          type: string
+          enum:
+          - STARTED
+          - STOPPED
+          title: Change
+        'on':
+          type: string
+          format: date
+          title: 'On'
+        reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reason
+      type: object
+      required:
+      - name
+      - kind
+      - change
+      - 'on'
+      - reason
+      title: ReportMedChange
+    ReportMedication:
+      properties:
+        name:
+          type: string
+          title: Name
+        kind:
+          type: string
+          enum:
+          - DRUG
+          - SUPPLEMENT
+          - HERBAL
+          - OTHER
+          title: Kind
+        dose:
+          type: string
+          title: Dose
+        per_day:
+          type: number
+          title: Per Day
+        started_on:
+          type: string
+          format: date
+          title: Started On
+        doses_given:
+          type: integer
+          title: Doses Given
+        doses_expected:
+          type: integer
+          title: Doses Expected
+      type: object
+      required:
+      - name
+      - kind
+      - dose
+      - per_day
+      - started_on
+      - doses_given
+      - doses_expected
+      title: ReportMedication
+    ReportObsGroup:
+      properties:
+        category:
+          type: string
+          enum:
+          - MOBILITY
+          - APPETITE
+          - TOILETING
+          - SKIN_COAT
+          - BREATHING
+          - BEHAVIOUR
+          - OTHER
+          title: Category
+        count:
+          type: integer
+          title: Count
+        entries:
+          items:
+            $ref: '#/components/schemas/ObservationOut'
+          type: array
+          title: Entries
+      type: object
+      required:
+      - category
+      - count
+      - entries
+      title: ReportObsGroup
+    ReportPeriod:
+      properties:
+        from:
+          type: string
+          format: date
+          title: From
+        to:
+          type: string
+          format: date
+          title: To
+        basis:
+          type: string
+          enum:
+          - since_last_visit
+          - last_30_days
+          - custom
+          title: Basis
+        last_visit:
+          anyOf:
+          - $ref: '#/components/schemas/VetVisitOut'
+          - type: 'null'
+      type: object
+      required:
+      - from
+      - to
+      - basis
+      - last_visit
+      title: ReportPeriod
+    ReportQoL:
+      properties:
+        first:
+          $ref: '#/components/schemas/CheckinOut'
+        latest:
+          $ref: '#/components/schemas/CheckinOut'
+        change:
+          additionalProperties:
+            type: integer
+          type: object
+          title: Change
+      type: object
+      required:
+      - first
+      - latest
+      - change
+      title: ReportQoL
+    ReportWeight:
+      properties:
+        first:
+          $ref: '#/components/schemas/WeightOut'
+        last:
+          $ref: '#/components/schemas/WeightOut'
+        change_kg:
+          type: number
+          title: Change Kg
+        change_pct:
+          type: number
+          title: Change Pct
+      type: object
+      required:
+      - first
+      - last
+      - change_kg
+      - change_pct
+      title: ReportWeight
+    StarsOut:
+      properties:
+        stars_waiting:
+          type: integer
+          title: Stars Waiting
+        stars_caught:
+          type: integer
+          title: Stars Caught
+        added:
+          type: integer
+          title: Added
+          default: 0
+      type: object
+      required:
+      - stars_waiting
+      - stars_caught
+      title: StarsOut
+    StopIn:
+      properties:
+        reason:
+          type: string
+          maxLength: 300
+          minLength: 1
+          title: Reason
+        stopped_on:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Stopped On
+      type: object
+      required:
+      - reason
+      title: StopIn
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+    VetVisitIn:
+      properties:
+        visited_on:
+          type: string
+          format: date
+          title: Visited On
+        clinic:
+          type: string
+          maxLength: 120
+          minLength: 1
+          title: Clinic
+        reason:
+          type: string
+          maxLength: 300
+          title: Reason
+          default: ''
+      type: object
+      required:
+      - visited_on
+      - clinic
+      title: VetVisitIn
+    VetVisitOut:
+      properties:
+        id:
+          type: integer
+          title: Id
+        visited_on:
+          type: string
+          format: date
+          title: Visited On
+        clinic:
+          type: string
+          title: Clinic
+        reason:
+          type: string
+          title: Reason
+      type: object
+      required:
+      - id
+      - visited_on
+      - clinic
+      - reason
+      title: VetVisitOut
+    WeightIn:
+      properties:
+        measured_on:
+          type: string
+          format: date
+          title: Measured On
+        kg:
+          type: number
+          maximum: 120.0
+          exclusiveMinimum: 0.0
+          title: Kg
+      type: object
+      required:
+      - measured_on
+      - kg
+      title: WeightIn
+    WeightOut:
+      properties:
+        id:
+          type: integer
+          title: Id
+        measured_on:
+          type: string
+          format: date
+          title: Measured On
+        kg:
+          type: number
+          title: Kg
+      type: object
+      required:
+      - id
+      - measured_on
+      - kg
+      title: WeightOut
