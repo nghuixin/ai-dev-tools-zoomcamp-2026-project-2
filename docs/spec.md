@@ -43,7 +43,7 @@ A small, optional **star garden** makes everyday logging enjoyable: each success
 | Look | White / very light grey background, one muted accent, system font, tables, explicit dates and units, print-friendly | Original 90s-arcade pixel art (prototype: [`game/index.html`](../game/index.html)) |
 | Placement | Every page | One collapsible strip at the top of Today only |
 | Print and vet report | Included | **Never** shown |
-| Data | All records | Owns no records; its quick-log buttons create ordinary clinical records. Only the star counters are its own |
+| Data | All records | Logs **medicine and supplement doses only**, as ordinary dose-log records (the same rows the Medicines page creates). Only the star counters are its own |
 
 The arcade fonts, colours and sounds are scoped to the garden component and never leak into clinical pages.
 
@@ -108,7 +108,12 @@ Each feature below becomes one GitHub issue with this checklist. Acceptance crit
 
 - [ ] One screen, one player, no levels, no way to fail.
 - [ ] Four dogs on a rainbow bridge: Kuro, Attila, Gladys, Lucky. The owner's dog (coat from the profile) walks on the grass: ← → / A D to walk, ↑ / W / Space to jump, tap to walk or tap the dog to jump.
-- [ ] Every **successful** save of an observation, dose, weight or check-in adds one waiting star; one of the bridge dogs drops it, never the same dog twice in a row. The very first star ever comes from Kuro. The first visit each day also adds one.
+- [ ] **Feeding log, the garden's only form:** the owner picks Medicine or Supplement, then one of the dog's active medicines of that kind (Medicine = `DRUG`, `HERBAL`, `OTHER`; Supplement = `SUPPLEMENT`) with its dose shown, and presses **Gave it**. This calls `POST /api/medications/{id}/doses`, the same endpoint as "Gave medicine", so the dose counts in the vet report's adherence like any other.
+- [ ] The time given defaults to now and can be changed (for a dose given earlier).
+- [ ] The garden cannot create, edit, refill or stop a medicine. If the list is empty, it links to the Medicines page.
+- [ ] Observations, weight and check-ins are never logged from the garden; they use the clinical pages.
+- [ ] The garden lists the last few doses logged (time, name, dose) so a double dose is easy to spot.
+- [ ] Every **successful** save of an observation, dose, weight or check-in, from the garden or a clinical page, adds one waiting star; one of the bridge dogs drops it, never the same dog twice in a row. The very first star ever comes from Kuro. The first visit each day also adds one.
 - [ ] **Stars reward logging, never results:** the number of stars never depends on scores or values.
 - [ ] No star is added when a save fails.
 - [ ] Catching moves a star from waiting to caught (`POST /api/stars/catch`).
@@ -181,7 +186,7 @@ Browser (React + Vite)  ──HTTP /api──►  FastAPI (Python, uv)  ──SQ
 | Layer | Tool | Covers |
 |---|---|---|
 | Backend unit | pytest, in-memory SQLite | Run-out arithmetic (incl. refill and stop), stop-reason rule, HHHHHMM total, one check-in per week, adherence counts, weight % change, report period selection, Analyze validation and failure, stars added only on success and independent of values, telemetry contains no record text |
-| Frontend | Vitest + Testing Library | Forms and validation, AI/EDITED tags, "suggestion unavailable" path, report renders every section and empty states, print stylesheet hides the garden, garden quick-logs call the normal record endpoints |
+| Frontend | Vitest + Testing Library | Forms and validation, AI/EDITED tags, "suggestion unavailable" path, report renders every section and empty states, print stylesheet hides the garden, the garden's feeding log offers only active medicines and supplements and calls `POST /api/medications/{id}/doses` |
 | Integration | pytest + httpx against Docker Compose (Postgres) | Full journeys over HTTP: create dog → log records → report shows them; data survives an API restart |
 
 **One command:** `make test-all` starts Compose, waits for `/healthz`, runs backend unit, frontend and integration tests, then tears down. CI runs the same target.

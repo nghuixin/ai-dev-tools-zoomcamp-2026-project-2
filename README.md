@@ -15,7 +15,7 @@ Owners of ageing or chronically ill dogs keep care information in their heads, g
 - **Log** observations, medicine doses, weight and a weekly quality-of-life check-in (HHHHHMM) as they happen.
 - **Track** when each medicine runs out.
 - **Report:** a printable, clinical one-page vet report for any period: medicines and doses given, weight change, quality-of-life scores, observations by category and the owner's questions. Owner-recorded facts only, never a diagnosis.
-- **Star garden:** an optional pixel-art corner on the Today page. Each successful save drops a star from a rainbow bridge where Kuro, Attila, Gladys and Lucky sit, for your dog to catch. Stars reward logging, never results.
+- **Star garden:** an optional pixel-art corner on the Today page with a feeding log for medicines and supplements. Each dose logged there is a real record that shows up in the vet report. Each successful save drops a star from a rainbow bridge where Kuro, Attila, Gladys and Lucky sit, for your dog to catch. Stars reward logging, never results.
 
 ## Planned stack
 

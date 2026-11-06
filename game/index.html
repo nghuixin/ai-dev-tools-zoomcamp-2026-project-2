@@ -52,6 +52,9 @@
   li .t { color: var(--muted); white-space: nowrap; }
   li .k { color: var(--accent); white-space: nowrap; }
   .empty { color: var(--muted); }
+  #logName { flex: 2 1 180px; } #logDose { flex: 1 1 130px; } #logAt { flex: 1 1 200px; color-scheme: dark; }
+  .foot { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 14px 0 0; color: var(--muted); line-height: 1.1; }
+  .btn.small { background: var(--ink); color: var(--accent-ink); padding: 6px 8px; font-size: 8px; }
 </style>
 </head>
 <body>
@@ -69,17 +72,21 @@
   <p class="hint" id="hint"></p>
 
   <section class="panel">
-    <h2 id="logTitle">LOG</h2>
-    <div class="types" role="group" aria-label="Record type">
-      <button class="btn" type="button" data-type="obs" aria-pressed="true">OBSERVATION</button>
-      <button class="btn" type="button" data-type="med" aria-pressed="false">MEDICINE</button>
-      <button class="btn" type="button" data-type="chk" aria-pressed="false">CHECK-IN</button>
+    <h2 id="logTitle">FEEDING LOG</h2>
+    <div class="types" role="group" aria-label="What was given">
+      <button class="btn" type="button" data-type="med" aria-pressed="true">MEDICINE</button>
+      <button class="btn" type="button" data-type="sup" aria-pressed="false">SUPPLEMENT</button>
     </div>
     <form id="logForm">
-      <input id="logText" autocomplete="off" required aria-label="What happened">
-      <button class="btn go" type="submit">LOG IT ★</button>
+      <input id="logName" list="knownNames" autocomplete="off" required maxlength="80" aria-label="Name">
+      <datalist id="knownNames"></datalist>
+      <input id="logDose" autocomplete="off" required maxlength="40" placeholder="Dose, e.g. 1 tablet" aria-label="Dose">
+      <input id="logAt" type="datetime-local" required aria-label="Time given">
+      <button class="btn go" type="submit">GAVE IT ★</button>
     </form>
     <ul id="recent"></ul>
+    <p class="foot"><button class="btn small" id="download" type="button">DOWNLOAD LOG (CSV)</button>
+      <span>Each entry is a dose record. In the full app it saves to the medicine's dose log and counts in the vet report.</span></p>
   </section>
 
   <section class="panel">
@@ -133,14 +140,14 @@
     grey:   { c: "#a9a5b6", f: "#858195", d: "#858195", m: "#d0ccdb", h: "#c3bfd0" },
   };
   const TYPES = {
-    obs: { label: "Observation",    word: "observation", placeholder: "e.g. Slow to get up after a nap" },
-    med: { label: "Medicine given", word: "medicine",    placeholder: "e.g. Joint supplement, 1 chew" },
-    chk: { label: "Check-in",       word: "check-in",    placeholder: "e.g. Good day: ate well, wagged at visitors" },
+    med: { label: "Medicine",   word: "medicine",   placeholder: "Medicine, e.g. Carprofen 50 mg" },
+    sup: { label: "Supplement", word: "supplement", placeholder: "Supplement, e.g. Fish oil" },
   };
 
   // ================= Saved state (browser only in this prototype) =================
   const KEY = "canine-health-atlas-garden-v1";
-  let saved = { records: [], collected: 0, resting: 0, lastVisit: null, lastDog: -1, muted: false,
+  // doses: { kind: "med" | "sup", name, dose, given_at (ISO), logged_at (ISO) }, newest first.
+  let saved = { doses: [], collected: 0, resting: 0, lastVisit: null, lastDog: -1, muted: false,
                 myDog: { name: "", coat: "blue" } };
   try { Object.assign(saved, JSON.parse(localStorage.getItem(KEY)) || {}); } catch (e) {}
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch (e) {} };
@@ -631,42 +638,68 @@
   // ================= Page text =================
   function paintText() {
     document.getElementById("sub").textContent =
-      `Log something for ${dogName()} and Kuro, Attila, Gladys or Lucky will drop a star from the rainbow bridge.`;
+      `Log each medicine or supplement you give ${dogName()} and Kuro, Attila, Gladys or Lucky will drop a star from the rainbow bridge.`;
     document.getElementById("hint").textContent =
       `Walk ${dogName()} with ← → (or A / D) and jump with ↑ (or W / Space). On a phone, tap where they should go, or tap ${dogName()} to jump. Walk or jump into a star to catch it. Stars that land wait on the grass, so there's no rush.`;
-    document.getElementById("logTitle").textContent = `LOG FOR ${dogName().toUpperCase()}`;
+    document.getElementById("logTitle").textContent = `FEEDING LOG FOR ${dogName().toUpperCase()}`;
   }
   const nameIn = document.getElementById("dogName"), coatIn = document.getElementById("dogCoat");
   nameIn.value = saved.myDog.name; coatIn.value = saved.myDog.coat;
   nameIn.addEventListener("input", () => { saved.myDog.name = nameIn.value; save(); paintText(); });
   coatIn.addEventListener("change", () => { saved.myDog.coat = coatIn.value; save(); });
 
-  // ================= Log panel =================
-  let type = "obs";
-  const input = document.getElementById("logText");
+  // ================= Feeding log (medicines and supplements only) =================
+  // Every entry is a real dose record. In the full app "Gave it" calls
+  // POST /api/medications/{id}/doses and the star drops only after a 2xx.
+  let type = "med";
+  const nameField = document.getElementById("logName");
+  const doseField = document.getElementById("logDose");
+  const atField = document.getElementById("logAt");
+  const known = document.getElementById("knownNames");
   const typeButtons = document.querySelectorAll(".types .btn");
+  const pad = n => String(n).padStart(2, "0");
+  const localNow = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+  // Names already given of this kind, newest first, with the last dose used.
+  function lastDoses(kind) {
+    const seen = new Map();
+    for (const r of saved.doses) if (r.kind === kind && !seen.has(r.name.toLowerCase())) seen.set(r.name.toLowerCase(), r);
+    return [...seen.values()];
+  }
   function setType(t) {
     type = t;
     typeButtons.forEach(b => b.setAttribute("aria-pressed", String(b.dataset.type === t)));
-    input.placeholder = TYPES[t].placeholder;
+    nameField.placeholder = TYPES[t].placeholder;
+    known.textContent = "";
+    for (const r of lastDoses(t)) {
+      const o = document.createElement("option"); o.value = r.name; known.appendChild(o);
+    }
   }
-  typeButtons.forEach(b => b.addEventListener("click", () => { setType(b.dataset.type); input.focus(); }));
-  setType("obs");
+  typeButtons.forEach(b => b.addEventListener("click", () => { setType(b.dataset.type); nameField.focus(); }));
+  // Picking a known name fills in the dose used last time.
+  nameField.addEventListener("change", () => {
+    const hit = lastDoses(type).find(r => r.name.toLowerCase() === nameField.value.trim().toLowerCase());
+    if (hit && !doseField.value) doseField.value = hit.dose;
+  });
+  atField.value = localNow();
+  setType("med");
 
+  const fmt = iso => new Date(iso).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
   const recent = document.getElementById("recent");
   function renderRecent() {
     recent.textContent = "";
-    if (!saved.records.length) {
+    if (!saved.doses.length) {
       const p = document.createElement("li"); p.className = "empty";
-      p.textContent = "Nothing logged yet. Your first record earns a star.";
+      p.textContent = "No doses logged yet. Your first one earns a star.";
       recent.appendChild(p); return;
     }
-    for (const r of saved.records.slice(0, 6)) {
+    for (const r of saved.doses.slice(0, 6)) {
       const li = document.createElement("li");
-      const t = document.createElement("span"); t.className = "t";
-      t.textContent = new Date(r.at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-      const k = document.createElement("span"); k.className = "k"; k.textContent = TYPES[r.type].label;
-      const x = document.createElement("span"); x.textContent = r.text;
+      const t = document.createElement("span"); t.className = "t"; t.textContent = fmt(r.given_at);
+      const k = document.createElement("span"); k.className = "k"; k.textContent = TYPES[r.kind].label;
+      const x = document.createElement("span"); x.textContent = `${r.name} · ${r.dose}`;
       li.append(t, k, x); recent.appendChild(li);
     }
   }
@@ -675,15 +708,27 @@
 
   document.getElementById("logForm").addEventListener("submit", e => {
     e.preventDefault();
-    const text = input.value.trim();
-    if (!text) return;
-    // In the real app the star drops only after the save succeeds (a 2xx from the API).
-    saved.records.unshift({ type, text, at: new Date().toISOString() });
-    saved.records = saved.records.slice(0, 500);
-    save(); renderRecent();
-    input.value = "";
-    const word = TYPES[type].word;
-    dropStar(name => `${name} dropped a star for your ${word}!`);
+    const name = nameField.value.trim(), dose = doseField.value.trim();
+    const at = new Date(atField.value);
+    if (!name || !dose || isNaN(at)) return;
+    if (at.getTime() > Date.now() + 60000) { toast = { text: "That time is in the future!", t: 3.6 }; return; }
+    saved.doses.unshift({ kind: type, name, dose, given_at: at.toISOString(), logged_at: new Date().toISOString() });
+    saved.doses = saved.doses.slice(0, 2000);
+    save(); renderRecent(); setType(type);
+    nameField.value = ""; doseField.value = ""; atField.value = localNow();
+    dropStar(n => `${n} dropped a star for your ${TYPES[type].word}!`);
+  });
+
+  // The log is the dog's record, so it can leave the browser as a plain CSV.
+  document.getElementById("download").addEventListener("click", () => {
+    const q = v => `"${String(v).replace(/"/g, '""')}"`;
+    const rows = [["given_at", "kind", "name", "dose", "logged_at"]]
+      .concat([...saved.doses].reverse().map(r => [r.given_at, TYPES[r.kind].label, r.name, r.dose, r.logged_at]));
+    const blob = new Blob([rows.map(r => r.map(q).join(",")).join("\r\n")], { type: "text/csv" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `feeding-log-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   });
 
   // ================= Daily visit star (the very first one always comes from Kuro) =================
