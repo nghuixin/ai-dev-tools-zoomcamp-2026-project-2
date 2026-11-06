@@ -1,0 +1,170 @@
+# Spec §14. Every PR and push: tests. On master: build once, deploy to dev automatically,
+# then production after the owner approves the `production` environment.
+# Deploy jobs are skipped until the GCP variables exist (see docs/deployment.md).
+name: ci-cd
+
+on:
+  pull_request:
+  push:
+    branches: ["**"]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+
+permissions:
+  contents: read
+
+env:
+  REGION: ${{ vars.GCP_REGION }}
+  PROJECT: ${{ vars.GCP_PROJECT_ID }}
+  IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/atlas/atlas:${{ github.sha }}
+  RUNTIME_SA: atlas-runtime@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with: { version: "0.8.22" }
+      - run: uv sync --frozen
+        working-directory: backend
+      - run: uv run pytest -q
+        working-directory: backend
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", cache: npm, cache-dependency-path: frontend/package-lock.json }
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run typecheck && npm test
+        working-directory: frontend
+
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose config -q && docker compose --profile obs config -q
+
+  test-all:
+    needs: [backend, frontend, compose]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with: { version: "0.8.22" }
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", cache: npm, cache-dependency-path: frontend/package-lock.json }
+      - run: make install
+      - run: make test-all
+
+  build:
+    needs: test-all
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master' && vars.GCP_PROJECT_ID != ''
+    runs-on: ubuntu-latest
+    permissions: { contents: read, id-token: write }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - run: gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet
+      - run: docker build -t "$IMAGE" . && docker push "$IMAGE"
+
+  deploy-dev:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: development
+      url: ${{ steps.deploy.outputs.url }}
+    permissions: { contents: read, id-token: write }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - uses: astral-sh/setup-uv@v6
+        with: { version: "0.8.22" }
+      - name: Migrate the Neon dev branch, then reseed the demo dog
+        working-directory: backend
+        run: |
+          DATABASE_URL="$(gcloud secrets versions access latest --secret=DATABASE_URL_DEV)"
+          echo "::add-mask::$DATABASE_URL"
+          export DATABASE_URL
+          uv sync --frozen --no-dev
+          uv run alembic upgrade head
+          uv run python scripts/seed_demo.py --reset
+      - name: Deploy atlas-dev
+        id: deploy
+        run: |
+          gcloud run deploy atlas-dev --image "$IMAGE" --region "$REGION" --quiet \
+            --service-account "$RUNTIME_SA" --allow-unauthenticated --port 8000 \
+            --min-instances 0 --max-instances 2 \
+            --set-secrets DATABASE_URL=DATABASE_URL_DEV:latest \
+            --set-env-vars RUN_MIGRATIONS=0,OTEL_EXPORTER=gcp,GOOGLE_CLOUD_PROJECT="$PROJECT"
+          echo "url=$(gcloud run services describe atlas-dev --region "$REGION" --format='value(status.url)')" >> "$GITHUB_OUTPUT"
+      - name: Health check
+        run: bash scripts/healthcheck.sh "${{ steps.deploy.outputs.url }}"
+
+  deploy-prod:
+    needs: deploy-dev
+    runs-on: ubuntu-latest
+    # The owner is the required reviewer on this environment: the job waits for approval.
+    environment:
+      name: production
+      url: ${{ steps.promote.outputs.url }}
+    permissions: { contents: read, id-token: write }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - uses: astral-sh/setup-uv@v6
+        with: { version: "0.8.22" }
+      - name: Migrate the Neon main branch (backward compatible, so the old revision keeps working)
+        working-directory: backend
+        run: |
+          DATABASE_URL="$(gcloud secrets versions access latest --secret=DATABASE_URL_PROD)"
+          echo "::add-mask::$DATABASE_URL"
+          export DATABASE_URL
+          uv sync --frozen --no-dev
+          uv run alembic upgrade head
+          uv run python scripts/seed_demo.py --if-empty
+      - name: Deploy a candidate revision with no traffic
+        id: candidate
+        run: |
+          FLAGS=(--image "$IMAGE" --region "$REGION" --quiet --service-account "$RUNTIME_SA"
+                 --allow-unauthenticated --port 8000 --min-instances 0 --max-instances 2
+                 --set-secrets DATABASE_URL=DATABASE_URL_PROD:latest
+                 --set-env-vars RUN_MIGRATIONS=0,OTEL_EXPORTER=gcp,GOOGLE_CLOUD_PROJECT="$PROJECT")
+          if gcloud run services describe atlas-prod --region "$REGION" >/dev/null 2>&1; then
+            gcloud run deploy atlas-prod "${FLAGS[@]}" --no-traffic --tag candidate
+            BASE="$(gcloud run services describe atlas-prod --region "$REGION" --format='value(status.url)')"
+            echo "url=${BASE/https:\/\//https://candidate---}" >> "$GITHUB_OUTPUT"
+          else
+            # First ever deploy: Cloud Run can't create a service with --no-traffic.
+            gcloud run deploy atlas-prod "${FLAGS[@]}"
+            echo "url=$(gcloud run services describe atlas-prod --region "$REGION" --format='value(status.url)')" >> "$GITHUB_OUTPUT"
+          fi
+          echo "revision=$(gcloud run services describe atlas-prod --region "$REGION" --format='value(status.latestCreatedRevisionName)')" >> "$GITHUB_OUTPUT"
+      - name: Health-check the candidate
+        run: bash scripts/healthcheck.sh "${{ steps.candidate.outputs.url }}"
+      - name: Move 100% of traffic to the candidate
+        id: promote
+        run: |
+          gcloud run services update-traffic atlas-prod --region "$REGION" \
+            --to-revisions "${{ steps.candidate.outputs.revision }}=100"
+          echo "url=$(gcloud run services describe atlas-prod --region "$REGION" --format='value(status.url)')" >> "$GITHUB_OUTPUT"
+      - name: Health-check production
+        run: bash scripts/healthcheck.sh "${{ steps.promote.outputs.url }}"

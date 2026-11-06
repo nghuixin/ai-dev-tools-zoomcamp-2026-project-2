@@ -1,0 +1,52 @@
+# Spec §14: move production traffic back to an earlier revision. No rebuild, takes seconds.
+# Runs only when started by hand, and waits for approval on the `production` environment.
+name: rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: 'Revision to restore (e.g. atlas-prod-00012-abc), or "previous"'
+        required: true
+        default: previous
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      REGION: ${{ vars.GCP_REGION }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Choose the revision
+        id: pick
+        env:
+          WANTED: ${{ inputs.revision }}
+        run: |
+          CURRENT="$(gcloud run services describe atlas-prod --region "$REGION" \
+            --format='value(status.traffic[0].revisionName)')"
+          if [ "$WANTED" = "previous" ]; then
+            TARGET="$(gcloud run revisions list --service atlas-prod --region "$REGION" \
+              --sort-by='~metadata.creationTimestamp' --format='value(metadata.name)' \
+              | grep -A1 -x "$CURRENT" | tail -n1)"
+          else
+            TARGET="$WANTED"
+          fi
+          if [ -z "$TARGET" ] || [ "$TARGET" = "$CURRENT" ]; then
+            echo "No earlier revision to roll back to (serving: $CURRENT)." >&2; exit 1
+          fi
+          echo "Rolling back from $CURRENT to $TARGET"
+          echo "target=$TARGET" >> "$GITHUB_OUTPUT"
+      - run: |
+          gcloud run services update-traffic atlas-prod --region "$REGION" \
+            --to-revisions "${{ steps.pick.outputs.target }}=100"
+      - run: bash scripts/healthcheck.sh "$(gcloud run services describe atlas-prod --region "$REGION" --format='value(status.url)')"
