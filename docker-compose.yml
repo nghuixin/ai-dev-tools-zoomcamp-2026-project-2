@@ -1,0 +1,88 @@
+# `make up`      -> api + db on http://localhost:8000
+# `make up-obs`  -> plus Prometheus, Tempo, Loki, Promtail and Grafana (http://localhost:3000)
+# Host ports bind to localhost; move them in a git-ignored .env if they clash (see .env.example).
+name: atlas
+
+services:
+  db:
+    image: postgres:16.9-alpine
+    environment:
+      POSTGRES_USER: atlas
+      POSTGRES_PASSWORD: atlas   # local only; production uses Neon via Secret Manager
+      POSTGRES_DB: atlas
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U atlas -d atlas"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: .
+    image: atlas:local
+    ports:
+      - "127.0.0.1:${ATLAS_PORT:-8000}:8000"
+    environment:
+      DATABASE_URL: postgresql://atlas:atlas@db:5432/atlas
+      RUN_MIGRATIONS: "1"
+      OTEL_EXPORTER: ${OTEL_EXPORTER:-none}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
+      FAULT_SAVE_500_RATE: ${FAULT_SAVE_500_RATE:-0}
+      DEMO_BUG: ${DEMO_BUG:-}
+    labels:
+      logging: promtail
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # ---------- Observability (profile: obs) ----------
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    profiles: [obs]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --web.enable-lifecycle
+    volumes:
+      - ./ops/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./ops/observability/alerts.yml:/etc/prometheus/alerts.yml:ro
+    ports: ["127.0.0.1:${PROM_PORT:-9090}:9090"]
+
+  tempo:
+    image: grafana/tempo:2.6.1
+    profiles: [obs]
+    command: ["-config.file=/etc/tempo.yml"]
+    volumes:
+      - ./ops/observability/tempo.yml:/etc/tempo.yml:ro
+    ports: ["127.0.0.1:${TEMPO_PORT:-3200}:3200"]
+
+  loki:
+    image: grafana/loki:3.3.2
+    profiles: [obs]
+    command: ["-config.file=/etc/loki/local-config.yaml"]
+    ports: ["127.0.0.1:${LOKI_PORT:-3100}:3100"]
+
+  promtail:
+    image: grafana/promtail:3.3.2
+    profiles: [obs]
+    command: ["-config.file=/etc/promtail.yml"]
+    volumes:
+      - ./ops/observability/promtail.yml:/etc/promtail.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on: [loki]
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    profiles: [obs]
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+    volumes:
+      - ./ops/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./ops/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports: ["127.0.0.1:${GRAFANA_PORT:-3000}:3000"]
+    depends_on: [prometheus, tempo, loki]
+
+volumes:
+  pgdata:
