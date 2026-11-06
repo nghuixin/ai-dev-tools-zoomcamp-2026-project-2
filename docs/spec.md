@@ -1,7 +1,7 @@
 # Canine Health Atlas — Spec
 
 **Version:** MVP (AI Dev Tools Zoomcamp 2026, Project 2)
-**Status:** specified, not built
+**Status:** built and tested locally; cloud deployment awaits the one-time setup in [deployment.md](./deployment.md)
 **Audience:** the owner of one dog, and the vet they bring the record to
 **Background:** [MVP plan](./atlas/mvp-plan.md) · full long-term vision in [os-kuro-archives](https://github.com/nghuixin/os-kuro-archives)
 
@@ -136,7 +136,7 @@ Schema changes go through **Alembic** migrations. Migrations must be backward co
 
 ## 7. API (contract: `openapi.yaml`)
 
-Frontend first: the client in `frontend/src/services` defines the calls; `openapi.yaml` is extracted from it and the backend implements it. JSON is snake_case; errors are `{ "error": string }`.
+Frontend first: the client in `frontend/src/services` defines the calls and the backend implements them. `openapi.yaml` is generated from the backend (`make openapi`) and a test fails if it drifts. JSON is snake_case; errors are `{ "error": string }`.
 
 | Method and path | Purpose |
 |---|---|
@@ -148,8 +148,9 @@ Frontend first: the client in `frontend/src/services` defines the calls; `openap
 | `GET/POST /api/weights` | Weight |
 | `GET/PUT /api/checkins/{iso_week}`, `GET /api/checkins` | Weekly check-ins |
 | `GET/POST /api/vet-visits` | Vet visits |
-| `GET /api/report?from=&to=` | Vet report data |
-| `GET /api/stars`, `POST /api/stars/catch` | Star counters |
+| `GET /api/report?basis=&from=&to=&today=&tz_offset=` | Vet report data; days are counted in the owner's time zone |
+| `GET /api/doses?limit=` | Most recent doses (the garden's list) |
+| `GET /api/stars`, `POST /api/stars/visit`, `POST /api/stars/catch` | Star counters; the first visit each day adds one star |
 | `GET /healthz` | Liveness and database check (operations; not in the contract) |
 
 ## 8. Analyze
@@ -244,7 +245,7 @@ master:      build image ─► Artifact Registry (:sha) ─► deploy-dev (auto
 | Signal | What | Local (`make up-obs`) | Production |
 |---|---|---|---|
 | Traces | OpenTelemetry FastAPI + SQLAlchemy auto-instrumentation; one span per request with DB child spans | Tempo, viewed in Grafana | Cloud Trace |
-| Metrics | `atlas_record_saves_total{type, outcome}`, request duration histogram by route, report latency | Prometheus `/metrics`, Grafana dashboard | OpenTelemetry metrics exporter to Cloud Monitoring |
+| Metrics | `atlas_record_saves_total{type, outcome}`, request duration histogram by route, report latency | Prometheus `/metrics`, Grafana dashboard | Log-based metric `atlas_record_saves` built from the JSON request logs (see [tasks.md](./tasks.md)) |
 | Logs | One JSON line per request: `trace_id`, `span_id`, route, status, duration, record type. No record content (§9) | Loki, viewed in Grafana | Cloud Logging; the `logging.googleapis.com/trace` field links each line to its trace |
 
 - **Correlation:** every log line carries the trace ID, so a failed save in the logs opens its trace in one click (Grafana locally, Cloud Logging → Cloud Trace in production).
@@ -257,7 +258,7 @@ master:      build image ─► Artifact Registry (:sha) ─► deploy-dev (auto
 | `RecordSaveFailing` (page) | More than 5% of record saves return 5xx over 2 minutes, sustained 1 minute | The owner's care stops being recorded; that is the product's core job |
 
 - **Local:** Prometheus rule in `ops/observability/alerts.yml`. `make alert-demo` restarts the API with `FAULT_SAVE_500_RATE=0.5` (default 0) so the alert fires.
-- **Production:** an equivalent Cloud Monitoring alert policy on the `atlas_record_saves_total` metric, with a notification channel (email, plus a Pub/Sub topic the on-call agent can read).
+- **Production:** an equivalent Cloud Monitoring alert policy (PromQL) on the `atlas_record_saves` log-based metric (`ops/gcp/setup-monitoring.sh`), with a notification channel (email, plus a Pub/Sub topic the on-call agent can read).
 - No CPU or memory alerts: they don't describe user impact.
 
 ## 17. On-call agent
