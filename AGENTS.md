@@ -33,6 +33,7 @@ scripts/               poll_alerts.py (on-call), traffic.py, healthcheck.sh, cre
 |---|---|
 | `make install` | backend and frontend dependencies |
 | `make run` + `make dev` | API on :8000 (SQLite) and UI on :5173 |
+| `make run-neon` | API on :8000 against the Neon branch in `.env` (pooled `DATABASE_URL`, direct `DATABASE_URL_UNPOOLED` for migrations) |
 | `make up` / `make down` | whole system in Docker (API + UI + Postgres) on :8000 |
 | `make seed-demo` | demo dog (`LOCAL=1` for the SQLite dev database) |
 | `make test` | backend unit + frontend tests |

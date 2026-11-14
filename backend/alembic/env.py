@@ -16,14 +16,15 @@ target_metadata = Base.metadata
 def run_migrations_offline() -> None:
     from app.db import normalise_url
 
-    context.configure(url=normalise_url(get_settings().database_url), target_metadata=target_metadata,
+    context.configure(url=normalise_url(get_settings().migration_database_url), target_metadata=target_metadata,
                       literal_binds=True, render_as_batch=True)
     with context.begin_transaction():
         context.run_migrations()
 
 
 def run_migrations_online() -> None:
-    engine = make_engine(get_settings().database_url)
+    # Direct (unpooled) URL on Neon; the same as DATABASE_URL everywhere else.
+    engine = make_engine(get_settings().migration_database_url)
     with engine.connect() as connection:
         # render_as_batch lets SQLite apply ALTERs the same way Postgres does.
         context.configure(connection=connection, target_metadata=target_metadata, render_as_batch=True)
