@@ -90,6 +90,18 @@ def test_absolute_rule_root_on_windows_and_posix():
         assert poll.absolute_rule_root(Path("C:/work/tree")) == "//c/work/tree"
 
 
+def test_branch_and_url_rules_use_wildcards():
+    # `:*` only matches at a word boundary, so `oncall/:*` never matched `oncall/<alert>-<time>`
+    # and `localhost:3100/:*` never matched a real URL. `/*` does.
+    s = json.loads((ROOT / ".agents" / "oncall-settings.json").read_text())
+    allow, deny = s["permissions"]["allow"], s["permissions"]["deny"]
+    assert not any(r.endswith("/:*)") for r in allow)
+    assert "Bash(git push -u origin oncall/*)" in allow
+    assert all(r.endswith("/*)") for r in allow if r.startswith("Bash(curl"))
+    # A wildcard branch rule must not let a push name master or main as well.
+    assert "Bash(git push *master*)" in deny and "Bash(git push *main*)" in deny
+
+
 def test_agent_settings_use_edit_rules_only():
     # The CLI ignores Write(path) rules; Edit(path) covers every file-writing tool.
     s = json.loads((ROOT / ".agents" / "oncall-settings.json").read_text())
