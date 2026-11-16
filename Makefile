@@ -16,7 +16,7 @@ COMPOSE      := docker compose
 TEST_COMPOSE := docker compose -p atlas-test
 TEST_PORT    := 8099
 
-.PHONY: help install run dev test test-backend test-frontend test-integration test-all \
+.PHONY: help install run run-neon devtest test-backend test-frontend test-integration test-all \
         up down logs up-obs traffic alert-demo alert-demo-off seed-demo openapi build oncall-watch
 
 help: ## List commands
@@ -29,6 +29,9 @@ install: ## Install backend (uv) and frontend (npm) dependencies
 # ---------- Development ----------
 run: ## API on :8000 with a local SQLite file (migrates first)
 	cd backend && uv run alembic upgrade head && uv run uvicorn --factory app.main:create_app --reload --port 8000
+
+run-neon: ## API on :8000 against the Neon branch in .env (DATABASE_URL, DATABASE_URL_UNPOOLED)
+	cd backend && uv run --env-file ../.env alembic upgrade head && uv run --env-file ../.env uvicorn --factory app.main:create_app --reload --port 8000
 
 dev: ## Vite UI on :5173, proxying /api to :8000
 	cd frontend && npm run dev
