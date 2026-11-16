@@ -53,10 +53,14 @@ def checkin_total(items: dict[str, int], settings: Settings | None = None) -> in
 
 
 def _weighted_total(items: dict[str, int]) -> int:
-    # On-call demo (spec §17): a "refactor" that rescales each item by its share of the
-    # largest score. Planted bug: it divides by each item, so any item scored 0 crashes.
+    # On-call demo (spec §17): rescales each item by its share of the largest score.
+    # Each item's share is items[k] / top, so rescaled by top it is items[k] itself; the old
+    # form top / (top / items[k]) divided by the item and crashed on any 0 score
+    # (and on top == 0). Compute the share without dividing by the item.
     top = max(items[k] for k in CHECKIN_ITEMS)
-    return round(sum(top / (top / items[k]) for k in CHECKIN_ITEMS))
+    if top == 0:
+        return 0
+    return round(sum(top * (items[k] / top) for k in CHECKIN_ITEMS))
 
 
 # ---------- Weight (spec §5.6, report section 4) ----------
