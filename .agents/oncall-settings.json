@@ -23,7 +23,10 @@
       "Bash(gh pr create:*)",
       "Bash(curl -s http://localhost:3100/:*)",
       "Bash(curl -s http://localhost:3200/:*)",
-      "Bash(curl -s http://localhost:9090/:*)"
+      "Bash(curl -s http://localhost:9090/:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(jq:*)"
     ],
     "deny": [
       "Bash(git push origin master:*)",

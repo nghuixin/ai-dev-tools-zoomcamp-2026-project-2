@@ -149,6 +149,8 @@ def brief(alert: dict, errors: list[dict]) -> str:
 ## Evidence endpoints for this stack
 
 Use these instead of the default ports in `.agents/agents/oncall.md`; your curl permissions allow only these.
+Stay in the repository root: run `make test` there (or `make test-backend`), and don't `cd` into
+`backend/`, because the working directory persists between your commands.
 
 - **Loki:** {LOKI}
 - **Tempo:** {TEMPO}
@@ -173,16 +175,32 @@ def slug(s: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")
 
 
-def agent_settings() -> dict:
+def absolute_rule_root(tree: Path) -> str:
+    """`//<path>` names an absolute path in a permission rule. On Windows the drive is written
+    as a lowercase path segment: C:\\work\\x -> //c/work/x."""
+    p = tree.resolve().as_posix()
+    if re.match(r"^[A-Za-z]:/", p):
+        p = p[0].lower() + p[2:]
+    return "//" + p.lstrip("/")
+
+
+def agent_settings(tree: Path | None = None) -> dict:
     """The agent's tool permissions, with the read-only curl rules pointed at this stack's
-    Loki, Tempo and Prometheus (their host ports can be moved in .env)."""
+    Loki, Tempo and Prometheus (their host ports can be moved in .env). With `tree`, every
+    Edit rule is also pinned to the worktree by absolute path: relative rules follow the
+    agent's working directory, so after a `cd backend` they would stop matching."""
     settings = json.loads((ROOT / ".agents" / "oncall-settings.json").read_text(encoding="utf-8"))
     moved = {"http://localhost:3100": LOKI, "http://localhost:3200": TEMPO, "http://localhost:9090": PROM}
-    allow = settings["permissions"]["allow"]
-    for i, rule in enumerate(allow):
+    perms = settings["permissions"]
+    for i, rule in enumerate(perms["allow"]):
         for default, actual in moved.items():
             rule = rule.replace(f"{default}/", f"{actual.rstrip('/')}/")
-        allow[i] = rule
+        perms["allow"][i] = rule
+    if tree is not None:
+        root = absolute_rule_root(tree)
+        for kind in ("allow", "deny"):
+            pinned = [f"Edit({root}/{r[len('Edit('):]}" for r in perms[kind] if r.startswith("Edit(")]
+            perms[kind] += [r for r in pinned if r not in perms[kind]]
     return settings
 
 
@@ -220,7 +238,7 @@ def start_agent(alert: dict, text: str, dry_run: bool, on_worktree=lambda: None)
     on_worktree()
     (tree / ".oncall").mkdir(exist_ok=True)
     (tree / ".oncall" / "brief.md").write_text(text, encoding="utf-8")
-    settings_file.write_text(json.dumps(agent_settings(), indent=2), encoding="utf-8")
+    settings_file.write_text(json.dumps(agent_settings(tree), indent=2), encoding="utf-8")
     log = (tree / ".oncall" / "agent.log").open("w", encoding="utf-8")
     print(f"waking the on-call agent in {tree} ({branch}); log: {log.name}", flush=True)
     subprocess.Popen([claude_executable(), *args], cwd=tree, stdout=log, stderr=subprocess.STDOUT)

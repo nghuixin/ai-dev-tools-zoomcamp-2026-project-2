@@ -75,6 +75,21 @@ def test_evidence_endpoints_follow_moved_ports(monkeypatch):
     assert "http://localhost:3102" in text and "http://localhost:3202" in text and "http://localhost:9092" in text
 
 
+def test_edit_rules_are_pinned_to_the_worktree(tmp_path):
+    # Relative rules follow the agent's working directory; after `cd backend` they stop matching.
+    s = poll.agent_settings(tmp_path)["permissions"]
+    root = poll.absolute_rule_root(tmp_path)
+    assert root.startswith("//") and ":" not in root
+    assert f"Edit({root}/backend/**)" in s["allow"] and "Edit(backend/**)" in s["allow"]
+    assert f"Edit({root}/.github/**)" in s["deny"] and f"Edit({root}/backend/**)" not in s["deny"]
+
+
+def test_absolute_rule_root_on_windows_and_posix():
+    assert poll.absolute_rule_root(Path("C:/work/tree")).endswith("/work/tree")
+    if Path("C:/work/tree").resolve().as_posix().startswith("C:"):
+        assert poll.absolute_rule_root(Path("C:/work/tree")) == "//c/work/tree"
+
+
 def test_agent_settings_use_edit_rules_only():
     # The CLI ignores Write(path) rules; Edit(path) covers every file-writing tool.
     s = json.loads((ROOT / ".agents" / "oncall-settings.json").read_text())
