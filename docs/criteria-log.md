@@ -1,11 +1,11 @@
 # Course criteria and evidence
 
-AI Dev Tools Zoomcamp 2026, final project. Status: **built and verified locally in Docker (2026-11-05); cloud deployment pending the one-time setup in docs/deployment.md.**
+AI Dev Tools Zoomcamp 2026, final project. Status: **built and verified locally in Docker (2026-11-05); task tracker and a live on-call run added 2026-11-16; cloud deployment pending the one-time setup in docs/deployment.md.**
 
 | # | Criterion | Evidence | Status |
 |---|---|---|---|
 | 1 | Problem description | README (problem, what it does, expected behaviour); spec §1–2 | Done |
-| 2 | Product specification and task tracker | `docs/spec.md` with acceptance criteria per feature (§5); GitHub Issues created from it by `scripts/create_issues.py`, with labels and milestones; PRs say `Closes #n` | Spec done; issues to be created |
+| 2 | Product specification and task tracker | `docs/spec.md` with acceptance criteria per feature (§5); GitHub Issues created from it by `scripts/create_issues.py`, with labels and milestones; PRs say `Closes #n` | Done: [GitHub Issues](https://github.com/nghuixin/ai-dev-tools-zoomcamp-2026-project-2/issues?q=is%3Aissue) #2–#14 from the spec (created 2026-11-16, after the features were built, so #2–#9, #12 and #13 are closed against the commits that delivered them); #15 → PR #16 and #18 → PR #19 went through the PM → SWE → QA loop, with QA verdicts as PR comments; #10 and #11 stay open until the cloud deploy runs |
 | 3 | Agent team | `.agents/agents/` PM, SWE, QA, on-call; `docs/process.md`; `docs/permissions.md` | Done |
 | 4 | Context management | `AGENTS.md` (layout, commands, rules) linking modular docs; `CLAUDE.md` imports it; `docs/tasks.md` decision log | Done |
 | 5 | Application end to end | React UI → FastAPI → SQLAlchemy → Postgres/SQLite; one image serves UI and API; `make up` | Done (verified in Docker with Postgres) |
@@ -15,4 +15,4 @@ AI Dev Tools Zoomcamp 2026, final project. Status: **built and verified locally 
 | 9 | CI/CD | `.github/workflows/ci-cd.yml`: tests on every push and PR → build → auto deploy to dev → owner approval → no-traffic candidate → health check → traffic; `rollback.yml` | Written; deploy jobs activate once GCP variables are set |
 | 10 | Observability | OpenTelemetry traces (FastAPI + SQL), Prometheus metrics, JSON logs with `trace_id`; Grafana with Tempo↔Loki links; Cloud Trace/Logging in production; no record content (tested) | Done locally (`make up-obs`): metrics scraped, logs in Loki, log trace_id opens the Tempo trace with SQL spans; [dashboard screenshot](images/grafana-alert-demo.png) |
 | 11 | Alerting on user impact | `RecordSaveFailing` (Prometheus rule and Cloud Monitoring policy); `make alert-demo` | Done: `make alert-demo` took the alert to firing at 56% failed saves; resolved after `make alert-demo-off` |
-| 12 | On-call agent | `scripts/poll_alerts.py` wakes `claude -p` in a worktree with restricted permissions; planted `DEMO_BUG=checkin_total`; agent opens a PR, never deploys | Poller verified against the firing alert (dry run builds the brief from Loki with trace IDs); live agent run pending the first push to master |
+| 12 | On-call agent | `scripts/poll_alerts.py` wakes `claude -p` in a worktree with restricted permissions; planted `DEMO_BUG=checkin_total`; agent opens a PR, never deploys | Done locally, 2026-11-16: with `DEMO_BUG=checkin_total`, `make traffic` made `RecordSaveFailing` fire (11.9% of saves 5xx); `make oncall-watch` wrote a content-free brief (route, `ZeroDivisionError`, trace IDs) and woke the agent, which read the Tempo trace, found `logic.py:59`, added a failing regression test, fixed the code and opened [PR #17](https://github.com/nghuixin/ai-dev-tools-zoomcamp-2026-project-2/pull/17) without deploying or merging. Two earlier runs stopped at permission refusals, as the runbook requires; the trigger fixes they exposed (Windows launch, port overrides, path and wildcard rules) are in #15 / PR #16 |
