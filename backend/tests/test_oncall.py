@@ -129,3 +129,19 @@ def test_demo_bug_path_matches_the_plain_total_for_non_zero_scores(make_client):
     c = make_client(demo_bug="checkin_total")
     c.put("/api/dog", json={"name": "Mochi"})
     assert c.put("/api/checkins/2026-W45", json=CHECKIN).json()["total"] == 50
+
+
+def test_checkin_with_a_zero_score_saves_on_the_demo_bug_path(make_client):
+    # Regression for RecordSaveFailing: PUT /api/checkins/{iso_week} returned 500 (ZeroDivisionError)
+    # whenever an item was scored 0, because the weighted total divided by each item.
+    c = make_client(demo_bug="checkin_total")
+    c.put("/api/dog", json={"name": "Mochi"})
+    scores = [k for k in CHECKIN if k != "note"]
+    one_zero = {**CHECKIN, scores[0]: 0}
+    r = c.put("/api/checkins/2026-W47", json=one_zero)
+    assert r.status_code in (200, 201)
+    assert r.json()["total"] == sum(one_zero[k] for k in scores)
+    all_zero = {**CHECKIN, **{k: 0 for k in scores}}
+    r = c.put("/api/checkins/2026-W48", json=all_zero)
+    assert r.status_code in (200, 201)
+    assert r.json()["total"] == 0
