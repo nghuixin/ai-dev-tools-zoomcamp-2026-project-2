@@ -32,10 +32,85 @@ def test_each_alert_instance_handled_once(tmp_path, monkeypatch):
     monkeypatch.setattr(poll, "firing_from_prometheus", lambda: [ALERT])
     monkeypatch.setattr(poll, "recent_errors_from_loki", lambda: [])
     started = []
-    monkeypatch.setattr(poll, "start_agent", lambda a, text, dry: started.append(a["name"]))
+    def fake_start(a, text, dry, on_worktree):
+        started.append(a["name"])
+        on_worktree()
+
+    monkeypatch.setattr(poll, "start_agent", fake_start)
     assert poll.poll_once(dry_run=False) == 1
     assert poll.poll_once(dry_run=False) == 0
     assert started == ["RecordSaveFailing"]
+
+
+def test_alert_stays_handled_when_the_agent_fails_to_start(tmp_path, monkeypatch):
+    # The worktree exists, then starting the agent fails: the next poll must not make another worktree.
+    monkeypatch.setattr(poll, "STATE", tmp_path / "handled.json")
+    monkeypatch.setattr(poll, "firing_from_prometheus", lambda: [ALERT])
+    monkeypatch.setattr(poll, "recent_errors_from_loki", lambda: [])
+    worktrees = []
+
+    def failing_start(a, text, dry, on_worktree):
+        worktrees.append(a["name"])
+        on_worktree()
+        raise FileNotFoundError("claude")
+
+    monkeypatch.setattr(poll, "start_agent", failing_start)
+    try:
+        poll.poll_once(dry_run=False)
+    except FileNotFoundError:
+        pass
+    assert poll.poll_once(dry_run=False) == 0
+    assert worktrees == ["RecordSaveFailing"]
+
+
+def test_evidence_endpoints_follow_moved_ports(monkeypatch):
+    monkeypatch.setattr(poll, "LOKI", "http://localhost:3102")
+    monkeypatch.setattr(poll, "TEMPO", "http://localhost:3202")
+    monkeypatch.setattr(poll, "PROM", "http://localhost:9092")
+    allow = poll.agent_settings()["permissions"]["allow"]
+    curls = [r for r in allow if r.startswith("Bash(curl")]
+    assert curls and not any(p in r for r in curls for p in (":3100/", ":3200/", ":9090/"))
+    assert any("localhost:3102/" in r for r in curls) and any("localhost:9092/" in r for r in curls)
+    assert 'Bash(curl -s "http://localhost:3102/*)' in allow  # Loki queries are quoted
+    text = poll.brief(ALERT, [])
+    assert "npm --prefix frontend ci" in text
+    assert "http://localhost:3102" in text and "http://localhost:3202" in text and "http://localhost:9092" in text
+
+
+def test_edit_rules_are_pinned_to_the_worktree(tmp_path):
+    # Relative rules follow the agent's working directory; after `cd backend` they stop matching.
+    s = poll.agent_settings(tmp_path)["permissions"]
+    root = poll.absolute_rule_root(tmp_path)
+    assert root.startswith("//") and ":" not in root
+    assert f"Edit({root}/backend/**)" in s["allow"] and "Edit(backend/**)" in s["allow"]
+    assert f"Edit({root}/.github/**)" in s["deny"] and f"Edit({root}/backend/**)" not in s["deny"]
+
+
+def test_absolute_rule_root_on_windows_and_posix():
+    assert poll.absolute_rule_root(Path("C:/work/tree")).endswith("/work/tree")
+    if Path("C:/work/tree").resolve().as_posix().startswith("C:"):
+        assert poll.absolute_rule_root(Path("C:/work/tree")) == "//c/work/tree"
+
+
+def test_branch_and_url_rules_use_wildcards():
+    # `:*` only matches at a word boundary, so `oncall/:*` never matched `oncall/<alert>-<time>`
+    # and `localhost:3100/:*` never matched a real URL. `/*` does.
+    s = json.loads((ROOT / ".agents" / "oncall-settings.json").read_text())
+    allow, deny = s["permissions"]["allow"], s["permissions"]["deny"]
+    assert not any(r.endswith("/:*)") for r in allow)
+    assert "Bash(git push -u origin oncall/*)" in allow
+    assert all(r.endswith("/*)") for r in allow if r.startswith("Bash(curl"))
+    # A wildcard branch rule must not let a push name master or main as well.
+    assert "Bash(git push *master*)" in deny and "Bash(git push *main*)" in deny
+
+
+def test_agent_settings_use_edit_rules_only():
+    # The CLI ignores Write(path) rules; Edit(path) covers every file-writing tool.
+    s = json.loads((ROOT / ".agents" / "oncall-settings.json").read_text())
+    rules = s["permissions"]["allow"] + s["permissions"]["deny"]
+    assert not any(r.startswith("Write(") for r in rules)
+    assert "Edit(docs/incidents/**)" in s["permissions"]["allow"]
+    assert "Edit(.github/**)" in s["permissions"]["deny"]
 
 
 def test_agent_settings_forbid_deploying_merging_and_master():

@@ -30,6 +30,7 @@ ROOT = Path(__file__).resolve().parents[1]
 STATE = ROOT / ".oncall" / "handled.json"
 PROM = os.environ.get("PROM_URL", "http://localhost:9090")
 LOKI = os.environ.get("LOKI_URL", "http://localhost:3100")
+TEMPO = os.environ.get("TEMPO_URL", "http://localhost:3200")
 GRAFANA = os.environ.get("GRAFANA_URL", "http://localhost:3000")
 SOURCE = os.environ.get("ONCALL_SOURCE", "prometheus")  # prometheus | pubsub
 SUBSCRIPTION = os.environ.get("ONCALL_SUBSCRIPTION", "")  # projects/<p>/subscriptions/<s>
@@ -145,6 +146,17 @@ def brief(alert: dict, errors: list[dict]) -> str:
 - **Dashboard:** {GRAFANA}/d/atlas-saves
 - **Immediate mitigation (owner only):** the `rollback` workflow. You must not run it.
 
+## Evidence endpoints for this stack
+
+Use these instead of the default ports in `.agents/agents/oncall.md`; your curl permissions allow only these.
+Stay in the repository root: run `make test` there (or `make test-backend`), and don't `cd` into
+`backend/`, because the working directory persists between your commands. This worktree has no
+frontend packages yet: run `npm --prefix frontend ci` once before `make test`.
+
+- **Loki:** {LOKI}
+- **Tempo:** {TEMPO}
+- **Prometheus:** {PROM}
+
 ## Last failing requests (content-free, spec §9)
 
 | Time | Request | Status | Error type | Trace |
@@ -164,7 +176,49 @@ def slug(s: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")
 
 
-def start_agent(alert: dict, text: str, dry_run: bool) -> None:
+def absolute_rule_root(tree: Path) -> str:
+    """`//<path>` names an absolute path in a permission rule. On Windows the drive is written
+    as a lowercase path segment: C:\\work\\x -> //c/work/x."""
+    p = tree.resolve().as_posix()
+    if re.match(r"^[A-Za-z]:/", p):
+        p = p[0].lower() + p[2:]
+    return "//" + p.lstrip("/")
+
+
+def agent_settings(tree: Path | None = None) -> dict:
+    """The agent's tool permissions, with the read-only curl rules pointed at this stack's
+    Loki, Tempo and Prometheus (their host ports can be moved in .env). With `tree`, every
+    Edit rule is also pinned to the worktree by absolute path: relative rules follow the
+    agent's working directory, so after a `cd backend` they would stop matching."""
+    settings = json.loads((ROOT / ".agents" / "oncall-settings.json").read_text(encoding="utf-8"))
+    moved = {"http://localhost:3100": LOKI, "http://localhost:3200": TEMPO, "http://localhost:9090": PROM}
+    perms = settings["permissions"]
+    for i, rule in enumerate(perms["allow"]):
+        for default, actual in moved.items():
+            rule = rule.replace(f"{default}/", f"{actual.rstrip('/')}/")
+        perms["allow"][i] = rule
+    # Loki queries need a quoted URL (braces, &); allow the quoted form of each evidence URL too.
+    quoted = [r.replace("curl -s http", 'curl -s "http') for r in perms["allow"] if r.startswith("Bash(curl -s http")]
+    perms["allow"] += [r for r in quoted if r not in perms["allow"]]
+    if tree is not None:
+        root = absolute_rule_root(tree)
+        for kind in ("allow", "deny"):
+            pinned = [f"Edit({root}/{r[len('Edit('):]}" for r in perms[kind] if r.startswith("Edit(")]
+            perms[kind] += [r for r in pinned if r not in perms[kind]]
+    return settings
+
+
+def claude_executable() -> str:
+    # On Windows the npm-installed CLI is claude.cmd, which CreateProcess won't find by bare name.
+    exe = shutil.which("claude")
+    if exe is None:
+        raise FileNotFoundError("The `claude` CLI is not on PATH.")
+    return exe
+
+
+def start_agent(alert: dict, text: str, dry_run: bool, on_worktree=lambda: None) -> None:
+    """Create the worktree, then start the agent. `on_worktree` runs as soon as the worktree
+    exists, so an agent that fails to start is not retried with a new worktree every poll."""
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     branch = f"oncall/{slug(alert['name'])}-{stamp}"
     tree = ROOT.parent / f"{ROOT.name}-{branch.replace('/', '-')}"
@@ -172,21 +226,26 @@ def start_agent(alert: dict, text: str, dry_run: bool) -> None:
         "You are the on-call agent. Read .agents/agents/oncall.md and follow it exactly. "
         "The incident brief is in .oncall/brief.md."
     )
-    cmd = ["claude", "-p", prompt, "--settings", str(ROOT / ".agents" / "oncall-settings.json"),
-           "--append-system-prompt", (ROOT / ".agents" / "agents" / "oncall.md").read_text(encoding="utf-8"),
-           "--max-turns", "60"]
+    settings_file = tree / ".oncall" / "settings.json"
+    # The multi-line role file goes in by path: newlines don't survive a Windows .cmd shim's arguments.
+    args = ["-p", prompt, "--settings", str(settings_file),
+            "--append-system-prompt-file", str(ROOT / ".agents" / "agents" / "oncall.md"),
+            "--max-turns", "60"]
     if dry_run:
         print(f"[dry-run] would create worktree {tree} on {branch}")
-        print(f"[dry-run] would run: {' '.join(cmd[:2])} ... (in {tree})")
+        print(f"[dry-run] would run: claude -p ... (in {tree})")
         print(text)
         return
     subprocess.run(["git", "-C", str(ROOT), "fetch", "origin", "master"], check=True)
-    subprocess.run(["git", "-C", str(ROOT), "worktree", "add", "-b", branch, str(tree), "origin/master"], check=True)
+    subprocess.run(["git", "-C", str(ROOT), "worktree", "add", "--no-track", "-b", branch, str(tree), "origin/master"],
+                   check=True)
+    on_worktree()
     (tree / ".oncall").mkdir(exist_ok=True)
     (tree / ".oncall" / "brief.md").write_text(text, encoding="utf-8")
+    settings_file.write_text(json.dumps(agent_settings(tree), indent=2), encoding="utf-8")
     log = (tree / ".oncall" / "agent.log").open("w", encoding="utf-8")
     print(f"waking the on-call agent in {tree} ({branch}); log: {log.name}", flush=True)
-    subprocess.Popen(cmd, cwd=tree, stdout=log, stderr=subprocess.STDOUT)
+    subprocess.Popen([claude_executable(), *args], cwd=tree, stdout=log, stderr=subprocess.STDOUT)
 
 
 def poll_once(dry_run: bool) -> int:
@@ -199,11 +258,12 @@ def poll_once(dry_run: bool) -> int:
         except Exception as e:  # evidence is best effort; the agent can still read logs itself
             print(f"could not read logs: {type(e).__name__}", file=sys.stderr)
             errors = []
-        start_agent(a, brief(a, errors), dry_run)
-        if not dry_run:
-            handled.add(alert_key(a))
-    if not dry_run:
-        save_handled(handled)
+
+        def mark(key: str = alert_key(a)) -> None:
+            handled.add(key)
+            save_handled(handled)
+
+        start_agent(a, brief(a, errors), dry_run, on_worktree=(lambda: None) if dry_run else mark)
     return len(new)
 
 
