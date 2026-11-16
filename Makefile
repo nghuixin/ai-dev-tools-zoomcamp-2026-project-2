@@ -97,4 +97,4 @@ alert-demo-off: ## Back to normal
 
 oncall-watch: ## Run the alert poller that wakes the on-call agent (spec §17)
 	cd backend && PROM_URL=http://localhost:$(PROM_PORT) LOKI_URL=http://localhost:$(LOKI_PORT) \
-	  GRAFANA_URL=http://localhost:$(GRAFANA_PORT) uv run python ../scripts/poll_alerts.py
+	  TEMPO_URL=http://localhost:$(TEMPO_PORT) GRAFANA_URL=http://localhost:$(GRAFANA_PORT) uv run python ../scripts/poll_alerts.py

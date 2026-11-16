@@ -32,10 +32,56 @@ def test_each_alert_instance_handled_once(tmp_path, monkeypatch):
     monkeypatch.setattr(poll, "firing_from_prometheus", lambda: [ALERT])
     monkeypatch.setattr(poll, "recent_errors_from_loki", lambda: [])
     started = []
-    monkeypatch.setattr(poll, "start_agent", lambda a, text, dry: started.append(a["name"]))
+    def fake_start(a, text, dry, on_worktree):
+        started.append(a["name"])
+        on_worktree()
+
+    monkeypatch.setattr(poll, "start_agent", fake_start)
     assert poll.poll_once(dry_run=False) == 1
     assert poll.poll_once(dry_run=False) == 0
     assert started == ["RecordSaveFailing"]
+
+
+def test_alert_stays_handled_when_the_agent_fails_to_start(tmp_path, monkeypatch):
+    # The worktree exists, then starting the agent fails: the next poll must not make another worktree.
+    monkeypatch.setattr(poll, "STATE", tmp_path / "handled.json")
+    monkeypatch.setattr(poll, "firing_from_prometheus", lambda: [ALERT])
+    monkeypatch.setattr(poll, "recent_errors_from_loki", lambda: [])
+    worktrees = []
+
+    def failing_start(a, text, dry, on_worktree):
+        worktrees.append(a["name"])
+        on_worktree()
+        raise FileNotFoundError("claude")
+
+    monkeypatch.setattr(poll, "start_agent", failing_start)
+    try:
+        poll.poll_once(dry_run=False)
+    except FileNotFoundError:
+        pass
+    assert poll.poll_once(dry_run=False) == 0
+    assert worktrees == ["RecordSaveFailing"]
+
+
+def test_evidence_endpoints_follow_moved_ports(monkeypatch):
+    monkeypatch.setattr(poll, "LOKI", "http://localhost:3102")
+    monkeypatch.setattr(poll, "TEMPO", "http://localhost:3202")
+    monkeypatch.setattr(poll, "PROM", "http://localhost:9092")
+    allow = poll.agent_settings()["permissions"]["allow"]
+    curls = [r for r in allow if r.startswith("Bash(curl")]
+    assert curls and not any(p in r for r in curls for p in (":3100/", ":3200/", ":9090/"))
+    assert any("localhost:3102/" in r for r in curls) and any("localhost:9092/" in r for r in curls)
+    text = poll.brief(ALERT, [])
+    assert "http://localhost:3102" in text and "http://localhost:3202" in text and "http://localhost:9092" in text
+
+
+def test_agent_settings_use_edit_rules_only():
+    # The CLI ignores Write(path) rules; Edit(path) covers every file-writing tool.
+    s = json.loads((ROOT / ".agents" / "oncall-settings.json").read_text())
+    rules = s["permissions"]["allow"] + s["permissions"]["deny"]
+    assert not any(r.startswith("Write(") for r in rules)
+    assert "Edit(docs/incidents/**)" in s["permissions"]["allow"]
+    assert "Edit(.github/**)" in s["permissions"]["deny"]
 
 
 def test_agent_settings_forbid_deploying_merging_and_master():
