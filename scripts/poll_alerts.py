@@ -150,7 +150,8 @@ def brief(alert: dict, errors: list[dict]) -> str:
 
 Use these instead of the default ports in `.agents/agents/oncall.md`; your curl permissions allow only these.
 Stay in the repository root: run `make test` there (or `make test-backend`), and don't `cd` into
-`backend/`, because the working directory persists between your commands.
+`backend/`, because the working directory persists between your commands. This worktree has no
+frontend packages yet: run `npm --prefix frontend ci` once before `make test`.
 
 - **Loki:** {LOKI}
 - **Tempo:** {TEMPO}
@@ -196,6 +197,9 @@ def agent_settings(tree: Path | None = None) -> dict:
         for default, actual in moved.items():
             rule = rule.replace(f"{default}/", f"{actual.rstrip('/')}/")
         perms["allow"][i] = rule
+    # Loki queries need a quoted URL (braces, &); allow the quoted form of each evidence URL too.
+    quoted = [r.replace("curl -s http", 'curl -s "http') for r in perms["allow"] if r.startswith("Bash(curl -s http")]
+    perms["allow"] += [r for r in quoted if r not in perms["allow"]]
     if tree is not None:
         root = absolute_rule_root(tree)
         for kind in ("allow", "deny"):

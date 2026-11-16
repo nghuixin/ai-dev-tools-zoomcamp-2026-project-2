@@ -71,7 +71,9 @@ def test_evidence_endpoints_follow_moved_ports(monkeypatch):
     curls = [r for r in allow if r.startswith("Bash(curl")]
     assert curls and not any(p in r for r in curls for p in (":3100/", ":3200/", ":9090/"))
     assert any("localhost:3102/" in r for r in curls) and any("localhost:9092/" in r for r in curls)
+    assert 'Bash(curl -s "http://localhost:3102/*)' in allow  # Loki queries are quoted
     text = poll.brief(ALERT, [])
+    assert "npm --prefix frontend ci" in text
     assert "http://localhost:3102" in text and "http://localhost:3202" in text and "http://localhost:9092" in text
 
 
